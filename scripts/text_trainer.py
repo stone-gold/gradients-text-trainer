@@ -601,6 +601,13 @@ def main():
             train_info,
             dev_path=os.path.join(ds_folder, f"dev_tokenized_{args.task_id}.json"),
             log=lambda m: print(m, flush=True))
+    elif restore_scaling.enabled() and args.task_type in (
+            TaskType.DPOTASK.value, TaskType.GRPOTASK.value):
+        # Preference / RL tasks: the scorer's reference is the ORIGINAL (un-augmented) model, so a
+        # uniformly rescaled base is undone before training. No dev-loss guard exists for these
+        # task types; the detector itself requires a clean constant-multiple signature.
+        train_info = restore_scaling.apply_unguarded(
+            train_info, log=lambda m: print(m, flush=True))
 
     original_train_cmd = train_cmd
     train_success = False

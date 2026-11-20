@@ -801,6 +801,32 @@ def apply_for_training(train_info: dict, *, dev_path: str, emit: Optional[Callab
     return train_info
 
 
+
+def apply_unguarded(train_info: dict, *, log: Callable = print) -> dict:
+    """Detect a constant weight multiple and train from the restored copy (DPO / GRPO path)."""
+    req = train_info["train_request"]
+    model_path = req["model_path"]
+    try:
+        det = detect(model_path)
+    except Exception as exc:
+        log(f"[sn56][restauro] detect error: {type(exc).__name__}: {exc}")
+        return train_info
+    if not det.detected or det.reason != "constant_multiple":
+        log(f"[sn56][restauro] nada detectado ({det.reason})")
+        return train_info
+    out_dir = restored_dir_for(req["output_dir"])
+    try:
+        write_restored(model_path, out_dir, det)
+    except Exception as exc:
+        shutil.rmtree(out_dir, ignore_errors=True)
+        log(f"[sn56][restauro] write error: {type(exc).__name__}: {exc}")
+        return train_info
+    req["model_path"] = out_dir
+    if "model_path" in train_info:
+        train_info["model_path"] = out_dir
+    log(f"[sn56][restauro] escala s={det.s:.6f} em {det.n_flagged} tensores - restaurado (sem guarda, {det.reason})")
+    return train_info
+
 def _main(argv: Optional[Sequence[str]] = None) -> int:
     ap = argparse.ArgumentParser()
     sub = ap.add_subparsers(dest="cmd", required=True)
