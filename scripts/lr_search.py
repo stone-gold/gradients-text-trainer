@@ -317,6 +317,7 @@ _PROBE_WARMUP = 5
 _EDGE_TOLERANCE = 0.025
 
 LAST_SELECTION: dict = {}
+LAST_PROBE_STEPS: int = 0   # optimizer steps of the S1 probes that chose the LR (lr_horizon.py)
 LAST_GNS: dict = {}
 
 _DPO_HOLDOUT_BATCHES = 24
@@ -1307,9 +1308,11 @@ def _run_lr_search_body(
     _s1_time_steps = int(budget_secs / (s1_n * t_per_step))
     _ph = probe_horizon or {}
     _ph_rows_per_step = int(_ph.get("rows_per_step") or 0)
+    global LAST_PROBE_STEPS
     s1_steps, _ = s1_steps_for_horizon(
         _s1_time_steps, s1_min, s1_max, n_rows=_ph.get("n_rows"),
         rows_per_step=_ph_rows_per_step, frac=float(_ph.get("frac") or 0.0))
+    LAST_PROBE_STEPS = int(s1_steps)
     if s1_n * s1_min * t_per_step > budget_secs:
         print(
             f"[sn56][farejando] Budget too small for S1 "

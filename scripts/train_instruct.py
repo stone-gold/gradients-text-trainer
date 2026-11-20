@@ -24,6 +24,7 @@ from transformers import Trainer
 from customized_trainer import MIS_MATCH_VOCAB_SIZE_MODELS, resize_if_needed, set_generation_config, CustomEvalSaveCallback, WhenToEvalHandler, init_wandb, restate_eval_gate_horizon, restate_eval_cadence, CADENCE_HORIZON_FRACTION, eval_gate_step
 from checkpoint_avg_callback import AdaptiveTrainingCallback, stop_rule_mode
 import lr_search
+import lr_horizon
 import model_sanity
 from lr_search import run_lr_search
 import second_trajectory
@@ -1237,6 +1238,9 @@ def main():
                      f"SN56_LR_PIN_ABS={_lr_pin:.2e}")
             best_lr = _lr_pin
         best_lr, _pin, _lr_unpinned = precise_update.apply_lr_pin(best_lr)
+        if _lr_pin is None and t_per_step and lr_search.LAST_PROBE_STEPS:
+            best_lr = lr_horizon.correct(best_lr, run_steps=_remaining_secs() / float(t_per_step),
+                                         probe_steps=lr_search.LAST_PROBE_STEPS, log=log_info)
         if _pin != 1.0:
             log_info(f"[sn56][farejando] LR {_lr_unpinned:.2e} x pino {_pin} = {best_lr:.2e}")
         trainer.args.learning_rate = best_lr
