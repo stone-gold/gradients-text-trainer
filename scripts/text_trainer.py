@@ -601,11 +601,11 @@ def main():
             train_info,
             dev_path=os.path.join(ds_folder, f"dev_tokenized_{args.task_id}.json"),
             log=lambda m: print(m, flush=True))
-    elif restore_scaling.enabled() and args.task_type in (
-            TaskType.DPOTASK.value, TaskType.GRPOTASK.value):
-        # Preference / RL tasks: the scorer's reference is the ORIGINAL (un-augmented) model, so a
-        # uniformly rescaled base is undone before training. No dev-loss guard exists for these
-        # task types; the detector itself requires a clean constant-multiple signature.
+    elif restore_scaling.enabled() and args.task_type == TaskType.GRPOTASK.value:
+        # GRPO is scored on rewards of sampled completions (validator grpo.py, beta=0: no reference
+        # term), so a uniformly rescaled base is undone before training. NOT for DPO: the DPO scorer's
+        # reference is the augmented task model itself (validator scoring/tasks.py), so moving the
+        # policy off it costs margin (measured 17.38 vs 0.93 DPO loss on 81f83573).
         train_info = restore_scaling.apply_unguarded(
             train_info, log=lambda m: print(m, flush=True))
 
