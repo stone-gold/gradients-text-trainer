@@ -1388,12 +1388,20 @@ def _run_lr_search_body(
     def _make_prune_fn(log_lr: float, rel_check: bool = True) -> Callable[[int, float, float], Optional[str]]:
         trial_min = {"v": float("inf")}
         def prune_fn(opt_step: int, rolling: float, first: float) -> Optional[str]:
-            if math.isfinite(rolling):
+            # The divergence reference is the best FULL-window rolling loss. While the window is still
+            # filling, "rolling" is a mean of 1-4 batches; the probe batches are identical for every LR,
+            # so one easy batch early in the sequence used to set a reference that every LR's later
+            # full-window mean exceeded by 1.75x. All S1 trials were then pruned as "diverged" and the
+            # search fell back to its coldest rung (seen: a15b846a 0.25-subsample, lr 5.1e-7 instead of
+            # ~3e-6, test loss +5.6%).
+            if math.isfinite(rolling) and opt_step >= _prune_window:
                 trial_min["v"] = min(trial_min["v"], rolling)
             if opt_step < _prune_min_step:
                 return None
-            base = trial_min["v"] if math.isfinite(trial_min["v"]) else first
-            if not math.isfinite(rolling) or rolling > base * _PRUNE_DIVERGE_FACTOR:
+            if not math.isfinite(rolling):
+                return f"diverge(roll={rolling:.3f} non-finite)"
+            base = trial_min["v"]
+            if math.isfinite(base) and rolling > base * _PRUNE_DIVERGE_FACTOR:
                 return f"diverge(roll={rolling:.3f} vs min={base:.3f})"
             if opt_step == _prune_rel_step:
                 prev = best_at_checkpoint.get(_prune_rel_step)
