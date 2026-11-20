@@ -224,6 +224,20 @@ def search(evaluate: Callable[[float], float], cfg: dict, known: Dict[float, flo
         seen[a] = evaluate(a)
         log(f"[sn56][anchor] a={a:.3f} loss={seen[a]:.5f}")
     best = min(seen, key=seen.get)
+    # Walk on while the best point is the outermost one evaluated (the optimum lies further out).
+    for _ in range(4):
+        pts = sorted(seen)
+        if best not in (pts[0], pts[-1]) or not time_ok():
+            break
+        a = round(best + (cfg["step"] if best == pts[-1] else -cfg["step"]), 4)
+        if a > cfg["hi"] or a < cfg["lo"] or a in seen:
+            break
+        seen[a] = evaluate(a)
+        log(f"[sn56][anchor] a={a:.3f} loss={seen[a]:.5f}")
+        if seen[a] >= seen[best]:
+            break
+        best = a
+    best = min(seen, key=seen.get)
     if seen[best] > seen[1.0] * (1.0 - cfg["min_gain"]):
         return 1.0, seen
     return best, seen
