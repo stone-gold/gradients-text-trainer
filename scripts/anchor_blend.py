@@ -50,10 +50,11 @@ MAX_TOKENS = 2048               # DPO: prompt truncated from the left, completio
 TOKEN_BUDGET = 8192             # padded tokens per forward batch
 SAFETY_SECS = 75.0              # never start an evaluation with less than this left (plus one eval)
 MAX_PARAMS = 9.5e9              # the line keeps theta_0 and theta - theta_0 resident; skip bigger models
-# DPO: may the search land on a = 0, i.e. submit the reference weights unchanged? On a fragile (augmented)
-# task that is the only point that beats the trained model (81f83573: 0.693 vs 0.905), but it ships the
-# untrained model, so it stays off until explicitly decided; the search then starts at DPO_MIN_A.
-ALLOW_REFERENCE = False
+# DPO "do no harm": a = 0 (the reference itself, loss exactly ln 2) is a candidate, so it is chosen only when
+# every evaluated a > 0 scores worse than the reference on the anchor rows. Measured: 81f83573 (weight-scaled
+# tinyllama) and its clean-model control both put every a > 0 above ln 2 (trained models 0.93-1.24 on test).
+# Decided by the user 21 Nov 2026. With False the search is clamped to a >= DPO_MIN_A instead.
+ALLOW_REFERENCE = True
 DPO_MIN_A = 0.25
 
 MODES = {
