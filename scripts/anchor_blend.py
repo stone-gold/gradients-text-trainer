@@ -360,7 +360,8 @@ def run(mode: str, train_request: dict, ref_path: str, submission_dir: str, dead
     if best == 1.0:
         log(f"[sn56][anchor] keeping a=1 {res['losses']}")
         return res
-    if _secs_left(deadline) < 30:
+    write_secs = 20.0 + _n_params(submission_dir) * 2.0 / 150e6   # ~150 MB/s safetensors write
+    if _secs_left(deadline) < write_secs + 30:
         res["status"] = "no_time_to_write"
         return res
     _write(model, line, best, submission_dir, is_lora)
