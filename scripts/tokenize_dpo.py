@@ -5,6 +5,7 @@ import json
 from datasets import Dataset, load_dataset
 import random 
 import os
+import anchor_blend
 TRL_DPO_FIELD_PROMPT = "prompt"
 TRL_DPO_FIELD_CHOSEN = "chosen"
 TRL_DPO_FIELD_REJECTED = "rejected"
@@ -88,6 +89,9 @@ def split_dataset(total_data_path: str, train_data_path: str, dev_data_path: str
         difficulty_fn=_dpo_response_length,
         seed=seed,
     )
+
+    _tid = os.path.basename(train_data_path)[len("dpo_train_"):-len(".json")]
+    train_items = anchor_blend.carve_anchor(train_items, _tid, "dpo", folder=os.path.dirname(train_data_path) or ".")
 
     with open(train_data_path, 'w') as file:
         json.dump(train_items, file, ensure_ascii=False)

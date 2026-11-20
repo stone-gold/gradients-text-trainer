@@ -15,6 +15,7 @@ import sys
 import time
 import random
 import json
+import anchor_blend
 import requests
 import os
 import shutil
@@ -293,6 +294,25 @@ def main(training_request_path: str):
         max_length = training_request["train_request"]["max_length"]
 
     print(f"max_length={max_length}")
+
+    # Anchor rows for the post-training line search (anchor_blend.py): out of the training file,
+    # tokenised exactly like the dev split.
+    with open(train_path, "r") as file:
+        _train_items = json.load(file)
+    _kept = anchor_blend.carve_anchor(_train_items, task_id, "instruct")
+    if len(_kept) < len(_train_items):
+        with open(train_path, "w") as file:
+            json.dump(_kept, file, ensure_ascii=False)
+        tokenize_dataset(
+            tokenizer,
+            anchor_blend.anchor_path(task_id, "instruct"),
+            training_request["train_request"]["dataset_type"],
+            config_path,
+            anchor_blend.anchor_path(task_id, "instruct_tokenized"),
+            split=native_tokenize.SPLIT_DEV,
+            max_length=max_length,
+        )
+    del _train_items, _kept
 
     tokenize_dataset(
         tokenizer,

@@ -3,6 +3,7 @@
 import quiet_mode
 import host_cpu
 import release_defaults
+import anchor_blend
 import save_guard as sg
 import argparse
 import asyncio
@@ -517,6 +518,11 @@ def main():
     end_time = datetime.now(timezone.utc) + timedelta(
         hours=args.hours_to_complete - 3 / 60
     )
+    # DPO: the reference-anchored blend (anchor_blend.py) runs after training, so training is told to
+    # finish a few minutes earlier; the blend itself works to the original end time.
+    final_deadline = end_time.strftime("%Y-%m-%d %H:%M:%S")
+    if args.task_type == TaskType.DPOTASK.value:
+        end_time = end_time - timedelta(minutes=anchor_blend.reserve_minutes(args.hours_to_complete))
     end_time = end_time.strftime("%Y-%m-%d %H:%M:%S")
     print("end_time: ", end_time, flush=True)
 
@@ -601,11 +607,11 @@ def main():
             train_info,
             dev_path=os.path.join(ds_folder, f"dev_tokenized_{args.task_id}.json"),
             log=lambda m: print(m, flush=True))
-    elif restore_scaling.enabled() and args.task_type in (
-            TaskType.DPOTASK.value, TaskType.GRPOTASK.value):
-        # Preference / RL tasks: the scorer's reference is the ORIGINAL (un-augmented) model, so a
-        # uniformly rescaled base is undone before training. No dev-loss guard exists for these
-        # task types; the detector itself requires a clean constant-multiple signature.
+    elif restore_scaling.enabled() and args.task_type == TaskType.GRPOTASK.value:
+        # GRPO is scored on rewards of sampled completions (validator grpo.py, beta=0: no reference
+        # term), so a uniformly rescaled base is undone before training. NOT for DPO: the DPO scorer's
+        # reference is the augmented model itself, and moving the policy off it costs margin
+        # (measured: 17.4 vs 0.93 DPO loss on 81f83573).
         train_info = restore_scaling.apply_unguarded(
             train_info, log=lambda m: print(m, flush=True))
 
@@ -663,6 +669,17 @@ def main():
     else:
         print(f"Training successfully done for task {args.task_id}", flush=True)
         train_success = True
+
+    _anchor_mode = {TaskType.DPOTASK.value: "dpo", TaskType.INSTRUCTTEXTTASK.value: "instruct",
+                    TaskType.CHATTASK.value: "instruct"}.get(args.task_type)
+    if train_success and _anchor_mode and not (_anchor_mode == "instruct" and os.environ.get("USE_KL")):
+        # Line start = the weights training started from (the restored copy when restore_scaling fired).
+        _line_start = ((train_info.get("train_request") or {}).get("model_path")
+                       or train_info.get("model_path") or model_path)
+        run_cmd_with_log(
+            f"python anchor_blend.py {_anchor_mode} {request_path} {_line_start} {submission_dir} '{final_deadline}'",
+            os.path.join(ds_folder, f"anchor_blend_{args.task_id}.log"),
+        )
 
     if not train_success:
         _exc_type, _exc_message, _ = exception_from_log(log_path)
