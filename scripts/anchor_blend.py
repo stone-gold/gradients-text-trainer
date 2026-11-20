@@ -50,6 +50,11 @@ MAX_TOKENS = 2048               # DPO: prompt truncated from the left, completio
 TOKEN_BUDGET = 8192             # padded tokens per forward batch
 SAFETY_SECS = 75.0              # never start an evaluation with less than this left (plus one eval)
 MAX_PARAMS = 9.5e9              # the line keeps theta_0 and theta - theta_0 resident; skip bigger models
+# DPO: may the search land on a = 0, i.e. submit the reference weights unchanged? On a fragile (augmented)
+# task that is the only point that beats the trained model (81f83573: 0.693 vs 0.905), but it ships the
+# untrained model, so it stays off until explicitly decided; the search then starts at DPO_MIN_A.
+ALLOW_REFERENCE = False
+DPO_MIN_A = 0.25
 
 MODES = {
     # grid evaluated first, refinement step, clamp, relative gain needed to leave a = 1
@@ -353,7 +358,9 @@ def run(mode: str, train_request: dict, ref_path: str, submission_dir: str, dead
     def time_ok() -> bool:
         return _secs_left(deadline) > per_eval[0] * 1.3 + SAFETY_SECS
 
-    known = {0.0: math.log(2.0)} if mode == "dpo" else {}
+    known = {0.0: math.log(2.0)} if (mode == "dpo" and ALLOW_REFERENCE) else {}
+    if mode == "dpo" and not ALLOW_REFERENCE:
+        cfg = dict(cfg, lo=max(cfg["lo"], DPO_MIN_A))
     best, seen = search(evaluate, cfg, known, time_ok, log)
     res = {"mode": mode, "status": "kept", "a": best, "losses": {str(k): round(v, 6) for k, v in sorted(seen.items())},
            "n": len(units), "lora": is_lora}
