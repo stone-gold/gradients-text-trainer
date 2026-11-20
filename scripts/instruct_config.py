@@ -216,7 +216,7 @@ def get_training_json(train_info: dict) -> dict:
         "epoch_num": 3,
         "batch_size": config["batch_size"],
         "learning_rate": config["lr"],
-        "min_lr_rate": 0.25,
+        "min_lr_rate": float(os.environ.get("SN56_MIN_LR_RATE", "0.25")),
         "warmup_steps": warmup_steps,
         "use_liger": get_use_liger(model_architecture),
         "optimizer": "paged_adamw_8bit",
