@@ -227,7 +227,7 @@ def get_run_cmd(config: dict, gpu_nums: int):
     --use_liger {use_liger} --num_generations {num_generations} --vllm_mode colocate --vllm_gpu_memory_utilization {vllm_gpu_memory_utilization} \
     --disable_fa {disable_fa} \
     --beta {beta} \
-    --loss_type bnpo --max_completion_length 256 \
+    --loss_type {loss_type} --max_completion_length 256 {grpo_extra} \
     --vllm_importance_sampling_correction False --use_bias_correction_kl False \
     --dataloader_pin_memory True"""
     )
@@ -286,8 +286,10 @@ def get_training_json(train_info: dict) -> dict:
         "gradient_checkpointing": get_gradient_checkpointing(model_name),
         "gradient_accumulation_steps": 4,
         "vllm_gpu_memory_utilization": config.get("vllm_gpu_memory_utilization", 0.4),
-        "num_generations": 2,
-        "beta": 0.5,
+        "num_generations": int(os.environ.get("SN56_GRPO_NGEN", "2")),
+        "beta": float(os.environ.get("SN56_GRPO_BETA", "0.5")),
+        "loss_type": os.environ.get("SN56_GRPO_LOSS", "bnpo"),
+        "grpo_extra": os.environ.get("SN56_GRPO_EXTRA", ""),
         "use_vllm": get_use_vllm(model_architecture, model_name, model_path),
         "tensor_parallel": config.get("tensor_parallel", False),
         "use_4bit": config.get("use_4bit", False),
@@ -361,6 +363,9 @@ def get_training_json(train_info: dict) -> dict:
                 flush=True,
             )
 
+    _ng = run_config["num_generations"]
+    if _ng > 2:
+        run_config["batch_size"] = max(_ng, (run_config["batch_size"] // _ng) * _ng)
     total_batch_size = run_config["batch_size"] * run_config["gpu_nums"]
     if total_batch_size < 64:
         run_config["gradient_accumulation_steps"] = min(4, int(64 / total_batch_size))
