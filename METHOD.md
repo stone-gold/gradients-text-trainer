@@ -2,11 +2,11 @@
 
 Each change below runs during training. The files named here contain the code.
 
-## 1. Anchor-line selection after training (`scripts/anchor_blend.py`)
-- Before training, 3% of the training rows (64 to 256) are held out as "anchor" rows. The split happens in `tokenize_instruct.py` and `tokenize_dpo.py`, and training never sees these rows.
+## 1. Anchor-line selection after DPO training (`scripts/anchor_blend.py`)
+- DPO only. Before training, 3% of the DPO training pairs (64 to 256) are held out as "anchor" pairs in `tokenize_dpo.py`, and training never sees them.
+- Instruct and chat train on all rows (no hold-out): on every instruct run the line search kept a = 1, so holding rows out cost data for no gain.
 - After training, the trained weights θ and the start weights θ0 span the line θ(a) = θ0 + a·(θ − θ0). We evaluate the validator's own loss for the task type at several values of a, on the anchor rows:
   - DPO: the DPO loss against the task model, beta 0.1, scored per pair as in validator `dpo.py`.
-  - Instruct and chat: the mean over examples of each example's token-mean CE.
 - The submission is rewritten at the best a, but only if that improves the anchor loss by a set margin.
 - A LoRA submission moves along this line exactly, by scaling `lora_B`.
 - For DPO, a = 0 (the task model itself, loss exactly ln 2) is also a candidate. It wins only if every trained point a > 0 scores worse on the anchor rows ("do no harm").

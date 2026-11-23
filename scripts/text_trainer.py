@@ -670,9 +670,10 @@ def main():
         print(f"Training successfully done for task {args.task_id}", flush=True)
         train_success = True
 
-    _anchor_mode = {TaskType.DPOTASK.value: "dpo", TaskType.INSTRUCTTEXTTASK.value: "instruct",
-                    TaskType.CHATTASK.value: "instruct"}.get(args.task_type)
-    if train_success and _anchor_mode and not (_anchor_mode == "instruct" and os.environ.get("USE_KL")):
+    # Instruct/chat: no anchor line search. Holding rows out of training cost more than the line search
+    # gained (it kept a = 1 on every instruct run), so instruct trains on all rows as the boss does.
+    _anchor_mode = {TaskType.DPOTASK.value: "dpo"}.get(args.task_type)
+    if train_success and _anchor_mode:
         # Line start = the weights training started from (the restored copy when restore_scaling fired).
         _line_start = ((train_info.get("train_request") or {}).get("model_path")
                        or train_info.get("model_path") or model_path)
